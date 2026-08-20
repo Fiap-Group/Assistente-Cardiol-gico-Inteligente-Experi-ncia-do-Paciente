@@ -37,5 +37,10 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
-/ios
-/android
+/app/ios
+/app/android
+
+# backend (Python)
+app/backend/__pycache__/
+app/backend/.venv/
+app/backend/.env
