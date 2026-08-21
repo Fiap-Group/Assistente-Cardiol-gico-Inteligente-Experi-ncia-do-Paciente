@@ -23,10 +23,6 @@ um agente de IA (RAG) sobre o próprio relatório enviado pelo usuário, geraç�
 automática de resumos a cada novo relatório e persistência local de dados e
 histórico de interações.
 
-## 🎥 Vídeo de apresentação
-
-[COLOCAR AQUI O LINK DO VÍDEO — publicado como "não listado"]
-
 ## 📁 Estrutura do projeto
 
 ```
