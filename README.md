@@ -11,6 +11,8 @@
 - Matheus Alboredo Soares
 - Jonathan Willian Luft
 - Ana Belchior
+### Tutor
+CaiqueFiap-2026
 
 ## 📜 Descrição
 
