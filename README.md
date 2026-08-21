@@ -67,12 +67,78 @@ app/                            # App React Native/Expo (frontend)
   o histórico de chat passaram a ser **persistidos localmente** (SQLite),
   com controle do usuário para excluir dados (lixeira nos cards de resumo).
 
+## 🎨 Evolução da experiência do usuário e decisões de interface
+
+- **Sprint 1 → 2**: interface de demonstração (Streamlit) só para validar o
+  pipeline RAG por fora — sem preocupação de UX, feita pra uso interno da
+  equipe.
+- **Sprint 3 (este app)**: interface pensada para o **paciente final**,
+  organizada em abas com navegação clara entre as seções do perfil genético
+  (Dashboard → Riscos → Ancestralidade → Análise/Chat):
+  - **Dashboard** como porta de entrada, com os destaques (maior risco +
+    top-2 ancestralidade) para leitura rápida, sem exigir que o usuário
+    navegue por tudo pra entender o essencial.
+  - **Ancestralidade** virou a tela de **entrada de dados**: o que antes era
+    colar um JSON cru virou um **formulário guiado** (campos de paciente,
+    linhas dinâmicas de ancestralidade e de risco), reduzindo erro de
+    formato e tornando o fluxo acessível a quem não sabe o que é JSON.
+  - **Resumos → Chat**: ao enviar um relatório, o app já gera o resumo e
+    **leva o usuário direto para a conversa**, em vez de deixar ele procurar
+    onde foi parar a resposta — menos passos entre a ação e o resultado.
+  - **Estados vazios explicados**: Dashboard e Riscos, antes de qualquer
+    relatório ser enviado, mostram uma frase apontando o que fazer
+    ("vá até Ancestralidade e envie seu relatório"), em vez de tela em
+    branco ou dado quebrado.
+  - **Exclusão de dados visível e no controle do usuário**: ícone de lixeira
+    em cada card de resumo, com confirmação antes de apagar — remove
+    resumo, conversa e registros do banco local juntos, sem depender de
+    suporte.
+  - **Multimodalidade (entrada por imagem)** foi avaliada e **conscientemente
+    deixada fora do escopo** desta entrega: é um requisito opcional do
+    enunciado, e implementar leitura de gráfico por imagem de forma
+    confiável (OCR/visão computacional) exigiria uma frente de trabalho
+    própria incompatível com o tempo da sprint. Nenhum código relacionado
+    ficou pela metade no repositório.
+
+### Salvaguardas de comunicação aplicadas
+
+- Disclaimer fixo nas telas **Dashboard** e **Riscos** lembrando que as
+  informações são interpretações, não diagnóstico.
+- Disclaimer **anexado por código** (não depende do LLM lembrar) ao final de
+  toda resposta do chat e de todo resumo automático — ver
+  `docs/GOVERNANCA_E_RISCOS.md`.
+- Prompt do agente instrui explicitamente a contextualizar risco genético
+  como **fator, não destino**, evitando linguagem alarmista, e a nunca
+  inventar valor/percentual/gene que não esteja no relatório do próprio
+  usuário.
+- Mensagens de erro (backend fora do ar, cota de IA esgotada) são sempre
+  explicadas ao usuário, para não confundir indisponibilidade técnica com
+  "não há risco".
+
+### Nota de escopo: resumos cobrem o relatório, não a conversa
+
+O resumo automático (gerado a cada novo relatório enviado) cobre os dados
+**estruturados do relatório** (riscos + ancestralidade) — não é um resumo da
+conversa do chat em si. O **histórico completo das interações** fica
+preservado e acessível a qualquer momento (SQLite local, tela de Chat),
+satisfazendo o requisito de persistência do histórico; resumir a conversa
+em si (ex: "resumir esta conversa") foi avaliado e deixado como evolução
+futura, para manter o escopo desta entrega focado no ciclo relatório → RAG →
+resposta.
+
 ## ✅ Requisitos desta entrega
 
 | Requisito | Onde está |
 |---|---|
+| Dashboard com cards de risco e resumo de ancestralidade | `app/src/screens/DashboardScreen.js`, `HomeScreen.js` (Riscos) |
+| Navegação clara entre seções do perfil genético | abas Dashboard / Riscos / Ancestralidade / Análise (`app/App.js`) |
+| Personalização das respostas via RAG | `app/backend/rag_system.py` (`Retriever`, indexação por usuário) |
+| Simplificação de linguagem (NLP) | regra 4 do `SYSTEM_PROMPT_RAG` (`app/backend/prompts.py`) — instrui linguagem acessível/sem jargão; `TextCleaner` normaliza siglas genômicas |
 | Sistema RAG (busca vetorial + geração fundamentada) | `app/backend/rag_system.py` — detalhado em `docs/ARQUITETURA_IA.md` |
-| Pipeline de NLP e engenharia de prompts | `TextCleaner` em `rag_system.py` (limpeza de texto) + `app/backend/prompts.py` (prompt do agente) |
+| Resumos automáticos do relatório | `app/src/services/resumoService.js` — nota de escopo acima |
+| Comunicação responsável / disclaimers obrigatórios | disclaimer anexado por código em toda resposta (`prompts.py` + `rag_system.py`) — detalhes em `docs/GOVERNANCA_E_RISCOS.md` |
+| Multimodalidade (opcional) | avaliada e deixada fora do escopo — ver nota acima |
+| Persistência de dados e histórico de interações | `app/src/db/database.js` (SQLite local) |
 | Documentação da arquitetura de IA | `docs/ARQUITETURA_IA.md` |
 | Front-end simples e funcional | `app/` — telas Ancestralidade (envio do relatório) e Análise (chat) |
 | Relatório de governança e riscos | `docs/GOVERNANCA_E_RISCOS.md` |
