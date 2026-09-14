@@ -58,6 +58,8 @@ app/                            # App React Native/Expo (frontend)
     test_api.py                     # Testes automatizados (rodam em modo mock)
     README.md                       # Documentação específica do backend
 ```
+## 🎥 VIDE DEMONSTAÇÃO
+->
 
 ## ▶️ COMO RODAR
 
