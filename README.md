@@ -108,15 +108,8 @@ Isso abre o app no navegador (o terminal mostra o link, geralmente
 ou `i` no terminal do Expo (precisa de emulador configurado).
 
 ### 3. Testar o fluxo
-
-1. Abra o app — a tela **Dashboard** mostra o disclaimer e as dicas de
-   saúde cardiovascular.
-2. Clique em **"Conversar com o assistente"** (ou vá direto na aba **Chat**).
-3. Digite uma pergunta e envie. Se o backend estiver em modo mock, a
-   resposta vem simulada, avisando que faltam as credenciais do Watson; com
-   as credenciais reais preenchidas, a resposta vem do assistant publicado
-   no IBM Cloud.
-4. Feche e reabra o app: o histórico da conversa continua lá (SQLite local).
+o Watson Assistant é em limitado que uma solução com IA generativa,o que implicaria em horas de trabalho para ter um fluxo grande de respostas,
+por isso fiz esse guia de perguntas para facilitar o teste.
 
 ### 4. Perguntas de exemplo para testar o chat
 
@@ -141,7 +134,7 @@ pergunta o bairro antes de responder):
 - "Qual é o posto de saúde mais perto da minha casa?"
 - "Qual o endereço do posto de saúde mais próximo?"
 - → o assistant responde **"qual Bairro?"**; digite um bairro (ex.:
-  `pinheiros`) na mensagem seguinte, na mesma conversa, para receber o
+  `pinheiros` ou `Belavista`) na mensagem seguinte, na mesma conversa, para receber o
   endereço e horário de funcionamento de uma UBS.
 
 **Como aferir a pressão corretamente** (passo a passo com o medidor
