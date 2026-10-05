@@ -74,4 +74,27 @@ export default StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.semiBold,
   },
+  blocoFontes: {
+    marginTop: -4,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  fontesTitulo: {
+    fontSize: 12,
+    fontFamily: fonts.semiBold,
+    color: colors.textSecondary,
+    paddingVertical: 4,
+  },
+  fonteItem: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    lineHeight: 17,
+    marginBottom: 6,
+    paddingLeft: 8,
+  },
+  fonteSecao: {
+    fontFamily: fonts.semiBold,
+    color: colors.textPrimary,
+  },
 });

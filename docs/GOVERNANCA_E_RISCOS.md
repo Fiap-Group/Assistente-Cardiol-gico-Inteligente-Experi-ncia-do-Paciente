@@ -101,14 +101,20 @@ do modelo lembrar de incluir.
   - Nenhum dado é enviado para nenhum outro terceiro além do provedor de LLM
     escolhido.
 
-**Recomendações para uma versão em produção (fora do escopo deste MVP):**
+**Já implementado na Sprint 4** (detalhes em `POLITICA_GOVERNANCA_IA.md`):
 
-- Anonimizar/pseudonimizar o relatório antes de enviar ao LLM (remover nome,
-  ID, data de nascimento do texto que vira contexto do prompt).
+- Pseudonimização antes de chamar o LLM: nome, data de nascimento, ID e
+  campos de documento, contato e endereço saem do texto do prompt.
+- Consentimento explícito antes do primeiro envio de relatório (Art. 11).
+- Botão "apagar meus dados", que remove os registros do dispositivo e o índice
+  do backend.
+- Logs sem texto das perguntas.
+
+**Ainda fora do escopo deste MVP (recomendações para uma versão em produção):**
+
 - Avaliar um provedor com garantias contratuais de não retenção/treinamento
   sobre os dados enviados (ex: acordos de processamento de dados/DPA), ou
   hospedar um modelo próprio (self-hosted) para eliminar o terceiro.
 - Criptografia em repouso do banco local, já que se trata de dado de saúde.
 - Autenticação de usuário e controle de acesso ao dispositivo/app.
-- Base legal e consentimento explícito do titular antes do primeiro envio de
-  dados genéticos, alinhado à LGPD (dado sensível, Art. 11).
+- Relatório de impacto à proteção de dados (RIPD), exigido para dado sensível.

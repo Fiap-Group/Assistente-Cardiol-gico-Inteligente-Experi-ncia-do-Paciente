@@ -46,6 +46,16 @@ export default StyleSheet.create({
     fontFamily: fonts.semiBold,
     color: colors.primary,
   },
+  linkApagarDados: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  linkApagarDadosTexto: {
+    fontSize: 13,
+    fontFamily: fonts.semiBold,
+    color: colors.textSecondary,
+    textDecorationLine: 'underline',
+  },
 
   formulario: {
     backgroundColor: colors.surface,

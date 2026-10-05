@@ -110,10 +110,39 @@ discussão de riscos)
 ## Engenharia de prompts
 
 - `app/backend/prompts.py` — prompt de sistema do agente de chat
-  (`SYSTEM_PROMPT_RAG`), separado da lógica do pipeline.
+  (`SYSTEM_PROMPT_RAG`), separado da lógica do pipeline. Na Sprint 4 foi
+  reescrito para o paciente leigo: respostas de até 120 palavras, ordem fixa
+  (resposta direta → o que significa → o que fazer) e linguagem sem jargão.
+- `app/backend/glossario.py` — termos técnicos com explicação pronta em
+  linguagem simples (ex.: alelo, haplogrupo, MTHFR). O glossário é injetado no
+  prompt, para que o modelo use as traduções já escritas, em vez de criar uma
+  explicação diferente a cada resposta.
 - `app/src/services/resumoService.js` — prompt fixo usado para gerar os
   resumos automáticos (`PROMPT_RESUMO`), no front-end, reaproveitando o
   mesmo endpoint `/api/chat`.
+
+## Operação, avaliação e validação (Sprint 4)
+
+- **Índice por relatório:** cada `POST /api/index` substitui o índice anterior
+  (`VectorStore.reset()` em `GenomicRAGPipeline.index_patient`). Antes, os
+  relatórios se acumulavam e a busca podia misturar pacientes.
+- **Logs estruturados:** `observabilidade.py` grava eventos em JSON em
+  `app/backend/logs/app.log`, com rotação. O texto das perguntas não entra no
+  log: registram-se um hash, o tamanho, as seções recuperadas e a latência.
+- **Métricas:** `GET /api/metrics` devolve contadores (perguntas, erros,
+  respostas sem ancoragem, resets) e latências p50/p95 desde o último start.
+- **Avaliação do modelo:** `avaliacao/avaliar.py` mede a recuperação contra o
+  gabarito de 28 perguntas (`avaliacao/gabarito.json`). Com `--com-llm`, também
+  avalia as respostas, respeitando a cota diária. Resultados em
+  `docs/AVALIACAO_MODELO.md`.
+- **Validação automática das respostas:** `avaliacao/validacao.py` checa
+  tamanho, clareza (frases curtas), números que não estão no contexto, termos
+  técnicos sem tradução e linguagem prescritiva.
+- **Rotina de operação:** `scripts/rotina_operacao.py` roda os testes, a
+  avaliação de recuperação e a checagem de saúde, e grava o resultado em
+  `logs/rotina_operacao.json`. Pode ser agendada.
+- **Pseudonimização antes do LLM:** `GenomicChunker._chunk_patient_profile`
+  remove identificadores diretos do texto enviado ao modelo (`CAMPOS_IDENTIFICADORES`).
 
 ## Pipeline de NLP (limpeza de texto)
 

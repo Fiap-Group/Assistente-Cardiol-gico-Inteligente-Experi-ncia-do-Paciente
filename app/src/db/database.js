@@ -43,7 +43,38 @@ export async function initDatabase() {
       criado_em TEXT NOT NULL,
       dados_json TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS consentimento (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      aceito_em TEXT NOT NULL
+    );
   `);
+}
+
+// Consentimento LGPD: registro de que a pessoa autorizou o uso dos dados
+// do relatório (dado de saúde, Art. 11). Só o primeiro aceite é gravado.
+export async function temConsentimento() {
+  const db = await getDatabase();
+  const linha = await db.getFirstAsync('SELECT id FROM consentimento LIMIT 1');
+  return !!linha;
+}
+
+export async function registrarConsentimento() {
+  const db = await getDatabase();
+  await db.runAsync('INSERT INTO consentimento (aceito_em) VALUES (?)', [new Date().toISOString()]);
+}
+
+// "Apagar meus dados" (LGPD, direito de eliminação): remove do dispositivo
+// todos os registros pessoais e o consentimento, em uma única transação.
+export async function apagarTodosOsDados() {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM mensagens');
+    await db.runAsync('DELETE FROM resumos');
+    await db.runAsync('DELETE FROM sessoes_chat');
+    await db.runAsync('DELETE FROM perfil_genomico');
+    await db.runAsync('DELETE FROM consentimento');
+  });
 }
 
 export async function obterSessaoAtual() {
@@ -112,9 +143,12 @@ export async function buscarResumos() {
 // já que cada resumo é dono de uma sessão de chat própria (ver criarResumo).
 export async function deletarResumo(resumoId, sessaoId) {
   const db = await getDatabase();
-  await db.runAsync('DELETE FROM mensagens WHERE sessao_id = ?', [sessaoId]);
-  await db.runAsync('DELETE FROM resumos WHERE id = ?', [resumoId]);
-  await db.runAsync('DELETE FROM sessoes_chat WHERE id = ?', [sessaoId]);
+  // Transação: se um dos DELETEs falhar, nenhum é aplicado (sem mensagens órfãs).
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM mensagens WHERE sessao_id = ?', [sessaoId]);
+    await db.runAsync('DELETE FROM resumos WHERE id = ?', [resumoId]);
+    await db.runAsync('DELETE FROM sessoes_chat WHERE id = ?', [sessaoId]);
+  });
 }
 
 export async function salvarPerfilGenomico(objetoJson) {

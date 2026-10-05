@@ -4,11 +4,17 @@ import { useFocusEffect } from '@react-navigation/native';
 import AncestralidadeBarra from '../components/AncestralidadeBarra';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Dropdown from '../components/Dropdown';
-import { buscarPerfilGenomicoAtual, salvarPerfilGenomico } from '../db/database';
-import { indexarRelatorio } from '../services/api';
+import {
+  apagarTodosOsDados,
+  buscarPerfilGenomicoAtual,
+  registrarConsentimento,
+  salvarPerfilGenomico,
+  temConsentimento,
+} from '../db/database';
+import { apagarIndiceNoBackend, indexarRelatorio } from '../services/api';
 import { gerarNovoResumo } from '../services/resumoService';
 import { mapearAncestralidade, mapearNivelRisco } from '../utils/perfilGenomico';
-import { avisar } from '../utils/alerta';
+import { avisar, confirmarAcao } from '../utils/alerta';
 import relatorioGenomicoExemplo from '../data/relatorioGenomico';
 import styles from '../styles/ancestralidadeScreenStyles';
 
@@ -168,6 +174,25 @@ export default function ProfileScreen({ navigation }) {
       return;
     }
 
+    // LGPD: o primeiro envio exige autorização explícita (dado de saúde, Art. 11).
+    // Sem ela, nada é enviado ao backend nem salvo no dispositivo.
+    if (await temConsentimento()) {
+      return enviarRelatorio(perfilMontado);
+    }
+    confirmarAcao(
+      'Autorização para usar seus dados',
+      'Seu relatório tem informações genéticas (dados de saúde). Elas serão usadas só para explicar o seu ' +
+        'relatório. Parte do texto é enviada ao serviço de IA do Google, sem seu nome e sem sua data de ' +
+        'nascimento. Você pode apagar tudo depois, quando quiser. Você autoriza?',
+      async () => {
+        await registrarConsentimento();
+        await enviarRelatorio(perfilMontado);
+      },
+      'Autorizar'
+    );
+  };
+
+  const enviarRelatorio = async (perfilMontado) => {
     setEnviando(true);
     try {
       await indexarRelatorio(perfilMontado);
@@ -194,6 +219,24 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  // LGPD (direito de eliminação): apaga no dispositivo e no índice do backend.
+  const handleApagarDados = () => {
+    confirmarAcao(
+      'Apagar meus dados',
+      'Isso remove do seu dispositivo o relatório, o histórico de conversas e os resumos, e apaga o ' +
+        'índice do backend. Não dá para desfazer.',
+      async () => {
+        await apagarIndiceNoBackend();
+        await apagarTodosOsDados();
+        setPerfil(null);
+        setAncestralidade([]);
+        setMostrarFormulario(false);
+        avisar('Dados apagados', 'Todos os seus dados foram removidos deste dispositivo.');
+      },
+      'Apagar'
+    );
+  };
+
   if (carregando) {
     return <LoadingSpinner message="Carregando seu perfil genético..." />;
   }
@@ -213,6 +256,12 @@ export default function ProfileScreen({ navigation }) {
                 <AncestralidadeBarra key={item.regiao} regiao={item.regiao} percentual={item.percentual} />
               ))}
             </View>
+
+            {!mostrarFormulario && (
+              <TouchableOpacity style={styles.linkApagarDados} onPress={handleApagarDados}>
+                <Text style={styles.linkApagarDadosTexto}>Apagar meus dados</Text>
+              </TouchableOpacity>
+            )}
 
             {!mostrarFormulario && (
               <TouchableOpacity style={styles.linkNovoRelatorio} onPress={handleAbrirNovoRelatorio}>

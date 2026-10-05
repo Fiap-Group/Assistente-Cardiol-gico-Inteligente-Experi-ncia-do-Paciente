@@ -1,14 +1,29 @@
 import { Platform } from 'react-native';
 import { buscarPerfilGenomicoAtual } from '../db/database';
 
-// Backend RAG (ver /backend). Emulador Android não enxerga "localhost" da
-// máquina host, por isso usa o alias especial 10.0.2.2 nesse caso.
-const API_URL = Platform.select({
-  android: 'http://10.0.2.2:5000',
-  default: 'http://localhost:5000',
-});
+// Backend RAG (ver /backend). Em produção (front publicado na nuvem), a URL
+// vem de EXPO_PUBLIC_API_URL, apontando para o túnel do backend. Sem essa
+// variável, usa o localhost de desenvolvimento. O emulador Android não
+// enxerga "localhost" da máquina host, por isso usa 10.0.2.2 nesse caso.
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  Platform.select({
+    android: 'http://10.0.2.2:5000',
+    default: 'http://localhost:5000',
+  });
 
 let indexadoNestaSessao = false;
+
+// Pede ao backend que esqueça o índice do paciente. Não lança erro se o
+// backend estiver fora do ar: os dados do dispositivo são apagados mesmo assim.
+export async function apagarIndiceNoBackend() {
+  try {
+    await fetch(`${API_URL}/api/reset`, { method: 'POST' });
+  } catch (_) {
+    // backend indisponível: nada a apagar na memória dele
+  }
+  indexadoNestaSessao = false;
+}
 
 // O backend devolve { error, details }: "details" costuma ter a explicação
 // mais útil (ex: "cota diária esgotada"), então preferimos ela quando existe.

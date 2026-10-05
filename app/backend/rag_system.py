@@ -37,6 +37,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("rag_genomics")
 
+# Campos do bloco "paciente" que identificam diretamente a pessoa. Ficam fora
+# do texto enviado ao LLM (ver GenomicChunker._chunk_patient_profile).
+CAMPOS_IDENTIFICADORES = {"id", "nome", "data_nascimento", "cpf", "rg", "telefone", "email", "endereco"}
+
 
 # ===========================================================================
 # 1. MODELOS DE DADOS
@@ -225,11 +229,15 @@ class GenomicChunker:
         if not patient:
             return []
 
-        parts = [f"Perfil do paciente ID {patient_id}:"]
+        # Pseudonimização (LGPD, minimização): identificadores diretos não vão
+        # para o texto enviado ao LLM. Os metadados completos continuam no
+        # chunk, mas não são usados na geração.
+        parts = ["Perfil do paciente:"]
         for key, val in patient.items():
-            if key != "id":
-                label = key.replace("_", " ").capitalize()
-                parts.append(f"{label}: {val}")
+            if key.lower() in CAMPOS_IDENTIFICADORES:
+                continue
+            label = key.replace("_", " ").capitalize()
+            parts.append(f"{label}: {val}")
 
         text = self.cleaner.clean_and_normalize("\n".join(parts))
         return [Chunk(
@@ -566,6 +574,12 @@ class VectorStore:
         except ImportError:
             logger.warning("FAISS não disponível. Usando NumPy para busca vetorial.")
             return False
+
+    def reset(self):
+        """Esvazia o índice. Usado antes de indexar um novo perfil, para que
+        dados de um relatório antigo não se misturem com o atual."""
+        self.chunks = []
+        self._index = None
 
     def add_chunks(self, chunks: list[Chunk]):
         """
@@ -996,6 +1010,11 @@ class GenomicRAGPipeline:
         """
         if isinstance(genomic_json, str):
             genomic_json = json.loads(genomic_json)
+
+        # Cada indexação substitui o perfil anterior: sem isso, os chunks de
+        # relatórios antigos continuariam no índice e poderiam ser recuperados
+        # numa pergunta sobre o relatório atual.
+        self.vector_store.reset()
 
         # 1. Chunking
         logger.info("Iniciando chunking do perfil genômico...")
