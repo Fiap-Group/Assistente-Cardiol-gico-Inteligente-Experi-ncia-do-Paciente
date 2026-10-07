@@ -27,3 +27,8 @@ jobs:
 
       - name: Testes unitários (sem chamar o LLM)
         run: pytest tests/ -q
+
+      - name: Checagem de tipos (pyright, sem erros)
+        run: |
+          pip install pyright
+          pyright
