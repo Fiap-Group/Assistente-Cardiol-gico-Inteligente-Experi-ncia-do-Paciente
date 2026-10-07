@@ -17,6 +17,7 @@ O resultado é um sinal para revisão, não um veredito clínico.
 =============================================================================
 """
 
+from typing import Any
 import re
 
 LIMITE_PALAVRAS = 130
@@ -65,7 +66,7 @@ def numeros_sem_fonte(resposta: str, contexto: str) -> list[str]:
 def termos_tecnicos_sem_traducao(resposta: str) -> list[str]:
     """Termo técnico é aceito quando vem seguido de explicação entre parênteses,
     como em 'alelo (uma das versões do DNA)'. Sem essa explicação, é sinalizado."""
-    achados = []
+    achados: list[str] = []
     for termo in TERMOS_TECNICOS:
         ocorrencias = re.finditer(rf"\b{termo}\b(?!\s*\()", resposta, flags=re.IGNORECASE)
         if any(True for _ in ocorrencias):
@@ -74,14 +75,14 @@ def termos_tecnicos_sem_traducao(resposta: str) -> list[str]:
 
 
 def termos_prescritivos(resposta: str) -> list[str]:
-    achados = []
+    achados: list[str] = []
     for termo in TERMOS_PRESCRITIVOS:
         if re.search(rf"\b{termo}\b", resposta, flags=re.IGNORECASE):
             achados.append(termo)
     return achados
 
 
-def avaliar_resposta(resposta_completa: str, contexto: str) -> dict:
+def avaliar_resposta(resposta_completa: str, contexto: str) -> dict[str, Any]:
     corpo = separar_disclaimer(resposta_completa)
     palavras = contar_palavras(corpo)
     media = round(media_palavras_por_frase(corpo), 1)

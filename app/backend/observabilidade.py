@@ -11,6 +11,7 @@ hash curto da pergunta, o tamanho, a seção recuperada e métricas técnicas.
 =============================================================================
 """
 
+from typing import Any
 import hashlib
 import json
 import logging
@@ -25,18 +26,18 @@ ARQUIVO_LOG = os.path.join(PASTA_LOGS, "app.log")
 
 
 class FormatadorJSON(logging.Formatter):
-    def format(self, registro):
-        evento = {
-            "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(registro.created)),
-            "nivel": registro.levelname,
-            "logger": registro.name,
-            "mensagem": registro.getMessage(),
+    def format(self, record: logging.LogRecord) -> str:
+        evento: dict[str, object] = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(record.created)),
+            "nivel": record.levelname,
+            "logger": record.name,
+            "mensagem": record.getMessage(),
         }
         # Campos extras passados via `extra={...}` nas chamadas de log.
         for chave in ("evento", "pergunta_hash", "pergunta_chars", "secoes",
                       "grounded", "latencia_ms", "chunks", "erro_tipo"):
-            if hasattr(registro, chave):
-                evento[chave] = getattr(registro, chave)
+            if hasattr(record, chave):
+                evento[chave] = getattr(record, chave)
         return json.dumps(evento, ensure_ascii=False)
 
 
@@ -52,7 +53,7 @@ def configurar_logs():
     console.setFormatter(FormatadorJSON())
     raiz.addHandler(arquivo)
     raiz.addHandler(console)
-    raiz._observabilidade_ok = True
+    setattr(raiz, "_observabilidade_ok", True)
 
 
 def hash_pergunta(texto: str) -> str:
@@ -66,15 +67,15 @@ class Metricas:
     def __init__(self, tamanho_janela: int = 500):
         self._lock = threading.Lock()
         self.iniciado_em = time.time()
-        self.contadores = {
+        self.contadores: dict[str, int] = {
             "indexacoes": 0,
             "perguntas": 0,
             "erros_pergunta": 0,
             "respostas_sem_ancoragem": 0,
             "resets": 0,
         }
-        self.latencias_ms = deque(maxlen=tamanho_janela)
-        self.ultimo_erro = None
+        self.latencias_ms: deque[float] = deque(maxlen=tamanho_janela)
+        self.ultimo_erro: dict[str, str] | None = None
 
     def incrementar(self, nome: str):
         with self._lock:
@@ -88,10 +89,11 @@ class Metricas:
         with self._lock:
             self.ultimo_erro = {"em": time.strftime("%Y-%m-%dT%H:%M:%S"), "mensagem": mensagem}
 
-    def resumo(self) -> dict:
+    def resumo(self) -> dict[str, Any]:
         with self._lock:
-            ordenadas = sorted(self.latencias_ms)
-            def percentil(p):
+            ordenadas: list[float] = sorted(self.latencias_ms)
+
+            def percentil(p: float) -> float | None:
                 if not ordenadas:
                     return None
                 return round(ordenadas[min(len(ordenadas) - 1, int(p * len(ordenadas)))], 1)

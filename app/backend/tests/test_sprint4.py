@@ -7,12 +7,13 @@ Rodar com:  pytest tests/
 """
 
 import json
-import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
+from flask.testing import FlaskClient
 
 BACKEND = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND))
@@ -26,7 +27,7 @@ RELATORIO_EXEMPLO = BACKEND / "sample_sprint1_output.json"
 
 
 def chunks_de(paciente: str, n: int) -> list[Chunk]:
-    saida = []
+    saida: list[Chunk] = []
     for i in range(n):
         vetor = np.random.rand(8).astype(np.float32)
         vetor /= np.linalg.norm(vetor)
@@ -62,7 +63,7 @@ def test_busca_depois_do_reset_so_devolve_dados_novos():
 class EmbeddingFalso:
     """Embeddings aleatórios de dimensão 8, sem carregar o modelo real."""
 
-    def embed(self, textos):
+    def embed(self, textos: list[str]) -> np.ndarray:
         vetores = np.random.rand(len(textos), 8).astype(np.float32)
         return vetores / np.linalg.norm(vetores, axis=1, keepdims=True)
 
@@ -80,10 +81,10 @@ def test_index_patient_substitui_o_relatorio_anterior():
     pipeline = GenomicRAGPipeline(
         cleaner=TextCleaner(),
         chunker=GenomicChunker(TextCleaner()),
-        embedding_engine=EmbeddingFalso(),
+        embedding_engine=EmbeddingFalso(),  # type: ignore[arg-type]  # duble de teste
         vector_store=VectorStore(use_faiss=False),
-        retriever=None,
-        generator=None,
+        retriever=None,  # type: ignore[arg-type]
+        generator=None,  # type: ignore[arg-type]
     )
     n1 = pipeline.index_patient(dados)
     n2 = pipeline.index_patient(segundo)
@@ -131,15 +132,19 @@ def test_log_nao_contem_texto_da_pergunta():
 class PipelineFalso:
     """Substitui o pipeline real nos testes de endpoint (sem modelo nem LLM)."""
 
-    def __init__(self, resposta_grounded=True):
+    def __init__(self, resposta_grounded: bool = True):
         self.vector_store = VectorStore(use_faiss=False)
         self._indexed = True
         self._grounded = resposta_grounded
 
-    def index_patient(self, dados):
+    def index_patient(self, dados: dict[str, Any]) -> int:
         return 3
 
-    def answer(self, pergunta):
+    def limpar_indice(self):
+        self.vector_store.reset()
+        self._indexed = False
+
+    def answer(self, pergunta: str) -> Any:
         from types import SimpleNamespace
         chunk = SimpleNamespace(section="riscos_doencas", subsection=None, text="trecho")
         return SimpleNamespace(
@@ -150,27 +155,27 @@ class PipelineFalso:
 
 
 @pytest.fixture
-def cliente(monkeypatch):
+def cliente(monkeypatch: pytest.MonkeyPatch) -> FlaskClient:
     monkeypatch.setattr(api, "_pipeline", PipelineFalso())
     monkeypatch.setattr(api, "_patient_indexed", False)
     api.app.config["TESTING"] = True
     return api.app.test_client()
 
 
-def test_health_e_metrics_respondem(cliente):
+def test_health_e_metrics_respondem(cliente: FlaskClient) -> None:
     assert cliente.get("/api/health").status_code == 200
     resposta = cliente.get("/api/metrics")
     assert resposta.status_code == 200
     assert "contadores" in resposta.get_json()
 
 
-def test_chat_sem_indexacao_retorna_400_com_mensagem_reconhecida_pelo_front(cliente):
+def test_chat_sem_indexacao_retorna_400_com_mensagem_reconhecida_pelo_front(cliente: FlaskClient) -> None:
     resposta = cliente.post("/api/chat", json={"question": "oi"})
     assert resposta.status_code == 400
     assert "indexado" in resposta.get_json()["error"]
 
 
-def test_index_depois_chat_e_reset(cliente):
+def test_index_depois_chat_e_reset(cliente: FlaskClient) -> None:
     assert cliente.post("/api/index", json={"paciente": {}}).status_code == 200
     resposta = cliente.post("/api/chat", json={"question": "qual meu risco?"})
     assert resposta.status_code == 200
@@ -182,9 +187,9 @@ def test_index_depois_chat_e_reset(cliente):
     assert cliente.post("/api/chat", json={"question": "oi"}).status_code == 400
 
 
-def test_erro_interno_nao_vaza_detalhe_ao_cliente(cliente, monkeypatch):
+def test_erro_interno_nao_vaza_detalhe_ao_cliente(cliente: FlaskClient, monkeypatch: pytest.MonkeyPatch) -> None:
     class PipelineQuebrado(PipelineFalso):
-        def answer(self, pergunta):
+        def answer(self, pergunta: str) -> Any:
             raise RuntimeError("segredo interno: chave xyz")
 
     monkeypatch.setattr(api, "_pipeline", PipelineQuebrado())

@@ -17,6 +17,7 @@ Dois modos:
 =============================================================================
 """
 
+from typing import Any
 import argparse
 import json
 import os
@@ -59,7 +60,7 @@ def construir_pipeline() -> GenomicRAGPipeline:
     return pipeline
 
 
-def avaliar_recuperacao(pipeline, item) -> dict:
+def avaliar_recuperacao(pipeline: GenomicRAGPipeline, item: dict[str, Any]) -> dict[str, Any]:
     chunks = pipeline.retriever.retrieve(item["pergunta"])
     secoes = [c.chunk.section for c in chunks]
     texto = " ".join(c.chunk.text.lower() for c in chunks)
@@ -70,7 +71,7 @@ def avaliar_recuperacao(pipeline, item) -> dict:
     return {"secoes": secoes, "secao_ok": secao_ok, "secao_top1": secao_top1, "termo_ok": termo_ok}
 
 
-def avaliar_geracao(pipeline, item) -> dict:
+def avaliar_geracao(pipeline: GenomicRAGPipeline, item: dict[str, Any]) -> dict[str, Any]:
     resposta = pipeline.answer(item["pergunta"])
     corpo = resposta.answer.split("\n\n---")[0].lower()
     tem_disclaimer = "não um diagnóstico" in resposta.answer.lower()
@@ -92,7 +93,7 @@ def avaliar_geracao(pipeline, item) -> dict:
     }
 
 
-def gerar_relatorio(linhas: list[dict], com_llm: bool) -> str:
+def gerar_relatorio(linhas: list[dict[str, Any]], com_llm: bool) -> str:
     total = len(linhas)
     ret = [l["recuperacao"] for l in linhas if l["recuperacao"]["secao_ok"] is not None]
     hit_secao = sum(1 for r in ret if r["secao_ok"]) / len(ret) * 100 if ret else 0
@@ -196,7 +197,7 @@ def main():
     gabarito = json.loads(GABARITO.read_text(encoding="utf-8"))
     pipeline = construir_pipeline()
 
-    linhas = []
+    linhas: list[dict[str, Any]] = []
     gerados = 0
     for item in gabarito:
         linha = {**item, "recuperacao": avaliar_recuperacao(pipeline, item), "geracao": None}

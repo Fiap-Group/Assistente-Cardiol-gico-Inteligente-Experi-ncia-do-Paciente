@@ -34,7 +34,8 @@ dados").
 
 ## 🎥 Vídeo de apresentação
 
-[COLOCAR AQUI O LINK DO VÍDEO — publicado como "não listado" no YouTube]
+- **Sprint 4 (versão final):** [COLOCAR AQUI O LINK DO VÍDEO — publicado como "não listado" no YouTube]
+- **Sprint 3 (versão anterior):** <https://youtu.be/B0GdbByxrrM>
 
 ## 🌐 Aplicação em execução (deploy)
 
@@ -167,6 +168,7 @@ RAG → resposta.
 | Requisito | Onde está |
 |---|---|
 | Dashboard com cards de risco e resumo de ancestralidade | `app/src/screens/DashboardScreen.js`, `HomeScreen.js` (Riscos) |
+| Front-end simples e funcional | `app/` (versão web, Expo): Ancestralidade (envio do relatório) e Análise (chat) |
 | Navegação clara entre seções do perfil genético | abas Dashboard / Riscos / Ancestralidade / Análise (`app/App.js`) |
 | Personalização das respostas via RAG | `app/backend/rag_system.py` (`Retriever`, índice por relatório) |
 | Simplificação de linguagem (NLP) | `app/backend/prompts.py` (público leigo), `glossario.py`, `TextCleaner` em `rag_system.py` |
@@ -250,6 +252,12 @@ O terminal mostra o link, geralmente `http://localhost:8081`.
 4. Confira as abas **Riscos** e **Dashboard**. Elas refletem o relatório enviado.
 5. Em **Ancestralidade**, use **"Apagar meus dados"** para remover tudo deste
    dispositivo e do backend.
+
+Se o backend não estiver rodando, faltar a chave de API ou a cota gratuita do
+Gemini esgotar, o app mostra um aviso explicando o problema. A indexação do
+relatório funciona sem a chave; só a geração da resposta precisa dela.
+Mais detalhes do backend (endpoints, variáveis de ambiente, teste via curl) em
+`app/backend/README.md`.
 
 ### 4. Testes, avaliação e rotina de operação
 

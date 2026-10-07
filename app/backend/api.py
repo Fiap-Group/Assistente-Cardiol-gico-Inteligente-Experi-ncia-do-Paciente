@@ -30,6 +30,7 @@ import logging
 import os
 import threading
 import time
+from typing import Any
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
@@ -68,7 +69,7 @@ def get_pipeline() -> GenomicRAGPipeline:
                 default_llm_backend = "anthropic"
             else:
                 default_llm_backend = "openai"
-            config = {
+            config: dict[str, Any] = {
                 "embedding_backend": os.getenv("EMBEDDING_BACKEND", "sentence_transformers"),
                 "embedding_model": os.getenv("EMBEDDING_MODEL"),
                 "llm_backend": os.getenv("LLM_BACKEND", default_llm_backend),
@@ -108,7 +109,7 @@ def index_patient():
     """Recebe o JSON genômico do paciente e substitui o índice atual."""
     global _patient_indexed
 
-    genomic_json = request.get_json(silent=True)
+    genomic_json: dict[str, Any] | None = request.get_json(silent=True)
     if not genomic_json:
         return jsonify({"error": "JSON do perfil genômico é obrigatório"}), 400
 
@@ -130,8 +131,8 @@ def chat():
     if not _patient_indexed:
         return jsonify({"error": "Nenhum perfil genômico indexado. Chame /api/index primeiro."}), 400
 
-    data = request.get_json(silent=True) or {}
-    question = (data.get("question") or "").strip()
+    data: dict[str, Any] = request.get_json(silent=True) or {}
+    question: str = (data.get("question") or "").strip()
     if not question:
         return jsonify({"error": "Campo 'question' é obrigatório"}), 400
 
@@ -182,8 +183,7 @@ def reset():
     """Apaga o índice do paciente da memória. Os dados do app (SQLite) são apagados no próprio dispositivo."""
     global _patient_indexed
     if _pipeline is not None:
-        _pipeline.vector_store.reset()
-        _pipeline._indexed = False
+        _pipeline.limpar_indice()
     _patient_indexed = False
     metricas.incrementar("resets")
     logger.info("Índice do paciente apagado a pedido do usuário", extra={"evento": "reset"})

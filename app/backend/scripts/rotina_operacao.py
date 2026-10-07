@@ -16,6 +16,7 @@ Código de saída 0 = tudo passou; 1 = alguma etapa falhou.
 =============================================================================
 """
 
+from typing import Any
 import json
 import os
 import subprocess
@@ -29,7 +30,7 @@ REGISTRO = BACKEND / "logs" / "rotina_operacao.json"
 URL_SAUDE = f"http://127.0.0.1:{os.getenv('PORT', '5000')}/api/health"
 
 
-def executar(nome: str, comando: list[str]) -> dict:
+def executar(nome: str, comando: list[str]) -> dict[str, Any]:
     inicio = datetime.now()
     processo = subprocess.run(comando, cwd=BACKEND, capture_output=True, text=True)
     return {
@@ -40,7 +41,7 @@ def executar(nome: str, comando: list[str]) -> dict:
     }
 
 
-def checar_backend() -> dict:
+def checar_backend() -> dict[str, Any]:
     try:
         with urllib.request.urlopen(URL_SAUDE, timeout=5) as resposta:
             corpo = json.loads(resposta.read().decode("utf-8"))

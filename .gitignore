@@ -47,3 +47,8 @@ app/backend/.env
 app/backend/logs/
 app/backend/.pytest_cache/
 app/dist/
+
+# caches do Python
+__pycache__/
+*.pyc
+.pytest_cache/

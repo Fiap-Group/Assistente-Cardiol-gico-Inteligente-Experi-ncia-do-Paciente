@@ -17,11 +17,12 @@ from __future__ import annotations
 
 import json
 import logging
+import importlib.util
 import re
 import time
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -51,9 +52,9 @@ class Chunk:
     """Unidade atômica de conhecimento extraída do JSON genômico."""
     chunk_id: str
     section: str          # Ex: "ancestralidade", "risco_doenca", "bem_estar"
-    subsection: str       # Ex: "europeu", "diabetes_tipo2", "vitamina_d"
+    subsection: str | None  # Ex: "europeu", "diabetes_tipo2", "vitamina_d"
     text: str             # Texto limpo e normalizado
-    metadata: dict        # Dados originais para referência
+    metadata: dict[str, Any]  # Dados originais para referência
     embedding: np.ndarray | None = field(default=None, repr=False)
 
 
@@ -112,7 +113,7 @@ class TextCleaner:
         Returns:
             Texto limpo, normalizado e pronto para embedding.
         """
-        if not text or not isinstance(text, str):
+        if not text:
             return ""
 
         # 1. Normalização Unicode (mantém acentos do português)
@@ -177,7 +178,7 @@ class GenomicChunker:
     def __init__(self, cleaner: TextCleaner):
         self.cleaner = cleaner
 
-    def chunk_json(self, genomic_json: dict) -> list[Chunk]:
+    def chunk_json(self, genomic_json: dict[str, Any]) -> list[Chunk]:
         """
         Ponto de entrada principal: transforma o JSON em lista de Chunks.
 
@@ -223,7 +224,7 @@ class GenomicChunker:
     def _make_chunk_id(self, patient_id: str, section: str, index: int) -> str:
         return f"{patient_id}_{section}_{index:03d}"
 
-    def _chunk_patient_profile(self, data: dict, patient_id: str) -> list[Chunk]:
+    def _chunk_patient_profile(self, data: dict[str, Any], patient_id: str) -> list[Chunk]:
         """Extrai perfil básico do paciente como chunk de contexto global."""
         patient = data.get("paciente", {})
         if not patient:
@@ -248,17 +249,18 @@ class GenomicChunker:
             metadata=patient,
         )]
 
-    def _chunk_ancestry(self, ancestry_data: dict | list, patient_id: str) -> list[Chunk]:
+    def _chunk_ancestry(self, ancestry_data: Any, patient_id: str) -> list[Chunk]:
         """
         Cria chunks de ancestralidade.
         Cada origem geográfica vira um chunk independente para buscas precisas.
         """
-        chunks = []
+        chunks: list[Chunk] = []
 
+        items: list[Any]
         if isinstance(ancestry_data, list):
-            items = ancestry_data
+            items = cast(list[Any], ancestry_data)
         elif isinstance(ancestry_data, dict):
-            items = ancestry_data.get("composicao", [ancestry_data])
+            items = cast(list[Any], cast(dict[str, Any], ancestry_data).get("composicao", [ancestry_data]))
         else:
             return []
 
@@ -291,34 +293,37 @@ class GenomicChunker:
 
         return chunks
 
-    def _chunk_disease_risks(self, risks_data: list | dict, patient_id: str) -> list[Chunk]:
+    def _chunk_disease_risks(self, risks_data: Any, patient_id: str) -> list[Chunk]:
         """
         Cada doença vira um chunk rico com risco, variantes e contexto.
 
         Estratégia: Um chunk por doença para garantir recuperação precisa
         em perguntas como "Qual meu risco de diabetes?".
         """
-        chunks = []
+        chunks: list[Chunk] = []
 
+        items: list[Any]
         if isinstance(risks_data, dict):
-            items = risks_data.get("doencas", list(risks_data.values()))
+            riscos = cast(dict[str, Any], risks_data)
+            items = cast(list[Any], riscos.get("doencas", list(riscos.values())))
         elif isinstance(risks_data, list):
-            items = risks_data
+            items = cast(list[Any], risks_data)
         else:
             return []
 
         for i, disease in enumerate(items):
             if not isinstance(disease, dict):
                 continue
+            disease_d: dict[str, Any] = cast(dict[str, Any], disease)
 
-            name = disease.get("nome", disease.get("doenca", f"doenca_{i}"))
-            risk_level = disease.get("nivel_risco", disease.get("risco", "N/A"))
-            risk_pct = disease.get("percentual_risco", "")
-            population_pct = disease.get("media_populacional", "")
-            variants = disease.get("variantes", disease.get("snps", []))
-            genes = disease.get("genes", [])
-            description = disease.get("descricao", "")
-            lifestyle = disease.get("fatores_estilo_vida", [])
+            name = disease_d.get("nome", disease_d.get("doenca", f"doenca_{i}"))
+            risk_level = disease_d.get("nivel_risco", disease_d.get("risco", "N/A"))
+            risk_pct = disease_d.get("percentual_risco", "")
+            population_pct = disease_d.get("media_populacional", "")
+            variants = disease_d.get("variantes", disease_d.get("snps", []))
+            genes = disease_d.get("genes", [])
+            description = disease_d.get("descricao", "")
+            lifestyle = disease_d.get("fatores_estilo_vida", [])
 
             parts = [f"Risco genético para {name}:"]
             parts.append(f"Nível de risco: {risk_level}.")
@@ -344,34 +349,35 @@ class GenomicChunker:
                 section="riscos_doencas",
                 subsection=str(name).lower().replace(" ", "_"),
                 text=text,
-                metadata=disease,
+                metadata=disease_d,
             ))
 
         return chunks
 
-    def _chunk_wellness(self, wellness_data: dict, patient_id: str) -> list[Chunk]:
+    def _chunk_wellness(self, wellness_data: dict[str, Any], patient_id: str) -> list[Chunk]:
         """
         Processa dados de bem-estar, nutrição e farmacogenômica.
         Agrupa por subcategoria para manter coesão semântica.
         """
-        chunks = []
+        chunks: list[Chunk] = []
         idx = 0
 
         for category, items in wellness_data.items():
             if not items:
                 continue
 
-            item_list = items if isinstance(items, list) else [items]
+            item_list: list[Any] = cast(list[Any], items) if isinstance(items, list) else [items]
 
             for item in item_list:
                 if not isinstance(item, dict):
                     continue
+                item_dict: dict[str, Any] = cast(dict[str, Any], item)
 
-                trait = item.get("caracteristica", item.get("nome", item.get("trait", category)))
-                result = item.get("resultado", item.get("status", item.get("genotipo", "N/A")))
-                impact = item.get("impacto", item.get("descricao", ""))
-                recommendation = item.get("recomendacao", "")
-                variants = item.get("variantes", [])
+                trait = item_dict.get("caracteristica", item_dict.get("nome", item_dict.get("trait", category)))
+                result = item_dict.get("resultado", item_dict.get("status", item_dict.get("genotipo", "N/A")))
+                impact = item_dict.get("impacto", item_dict.get("descricao", ""))
+                recommendation = item_dict.get("recomendacao", "")
+                variants = item_dict.get("variantes", [])
 
                 parts = [f"Bem-estar genômico – {category}: {trait}."]
                 parts.append(f"Resultado genético: {result}.")
@@ -389,29 +395,33 @@ class GenomicChunker:
                     section="bem_estar",
                     subsection=str(category).lower().replace(" ", "_"),
                     text=text,
-                    metadata=item,
+                    metadata=item_dict,
                 ))
                 idx += 1
 
         return chunks
 
-    def _chunk_recommendations(self, recs_data: list | dict, patient_id: str) -> list[Chunk]:
+    def _chunk_recommendations(self, recs_data: Any, patient_id: str) -> list[Chunk]:
         """Consolida recomendações clínicas em chunks acionáveis."""
-        chunks = []
+        chunks: list[Chunk] = []
 
+        items: list[tuple[str, Any]]
         if isinstance(recs_data, dict):
-            items = [(k, v) for k, v in recs_data.items()]
+            recs = cast(dict[str, Any], recs_data)
+            items = [(k, v) for k, v in recs.items()]
         elif isinstance(recs_data, list):
-            items = [(f"recomendacao_{i}", r) for i, r in enumerate(recs_data)]
+            itens_lista = cast(list[Any], recs_data)
+            items = [(f"recomendacao_{i}", r) for i, r in enumerate(itens_lista)]
         else:
             return []
 
         for i, (key, rec) in enumerate(items):
             if isinstance(rec, dict):
-                category = rec.get("categoria", key)
-                action = rec.get("acao", rec.get("descricao", str(rec)))
-                priority = rec.get("prioridade", "")
-                specialist = rec.get("especialista", "")
+                rec_dict: dict[str, Any] = cast(dict[str, Any], rec)
+                category = rec_dict.get("categoria", key)
+                action = rec_dict.get("acao", rec_dict.get("descricao", str(rec_dict)))
+                priority = rec_dict.get("prioridade", "")
+                specialist = rec_dict.get("especialista", "")
 
                 parts = [f"Recomendação clínica – {category}: {action}"]
                 if priority:
@@ -455,7 +465,7 @@ class EmbeddingEngine:
             model_name: Nome do modelo. Se None, usa o padrão do backend.
         """
         self.backend = backend
-        self._model = None
+        self._model: Any = None
 
         if backend == "sentence_transformers":
             self.model_name = model_name or "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
@@ -509,6 +519,7 @@ class EmbeddingEngine:
             return self._embed_sentence_transformers(texts)
         elif self.backend == "openai":
             return self._embed_openai(texts)
+        raise ValueError(f"Backend de embeddings desconhecido: {self.backend}")
 
     def _embed_sentence_transformers(self, texts: list[str]) -> np.ndarray:
         embeddings = self._model.encode(
@@ -522,7 +533,7 @@ class EmbeddingEngine:
     def _embed_openai(self, texts: list[str]) -> np.ndarray:
         """Gera embeddings via OpenAI API com batching automático."""
         BATCH_SIZE = 100  # Limite da API OpenAI
-        all_embeddings = []
+        all_embeddings: list[Any] = []
 
         for i in range(0, len(texts), BATCH_SIZE):
             batch = texts[i:i + BATCH_SIZE]
@@ -558,7 +569,7 @@ class VectorStore:
     def __init__(self, embedding_dim: int | None = None, use_faiss: bool = True):
         self.embedding_dim = embedding_dim
         self.chunks: list[Chunk] = []
-        self._index = None  # FAISS index
+        self._index: Any = None  # FAISS index
         self._use_faiss = use_faiss and self._faiss_available()
 
         if self._use_faiss:
@@ -568,18 +579,16 @@ class VectorStore:
 
     @staticmethod
     def _faiss_available() -> bool:
-        try:
-            import faiss  # noqa: F401
+        if importlib.util.find_spec("faiss") is not None:
             return True
-        except ImportError:
-            logger.warning("FAISS não disponível. Usando NumPy para busca vetorial.")
-            return False
+        logger.warning("FAISS não disponível. Usando NumPy para busca vetorial.")
+        return False
 
     def reset(self):
         """Esvazia o índice. Usado antes de indexar um novo perfil, para que
         dados de um relatório antigo não se misturem com o atual."""
         self.chunks = []
-        self._index = None
+        self._index: Any = None
 
     def add_chunks(self, chunks: list[Chunk]):
         """
@@ -603,7 +612,8 @@ class VectorStore:
 
     def _add_faiss(self, chunks: list[Chunk]):
         import faiss
-        vectors = np.vstack([c.embedding for c in chunks]).astype(np.float32)
+        # Chunks chegam aqui já filtrados (valid), então o embedding nunca é None.
+        vectors = np.vstack(cast(list[np.ndarray], [c.embedding for c in chunks])).astype(np.float32)
 
         if self._index is None:
             dim = vectors.shape[1]
@@ -642,28 +652,28 @@ class VectorStore:
             return self._search_numpy(query, top_k)
 
     def _search_faiss(self, query: np.ndarray, top_k: int) -> list[RetrievedChunk]:
-        import faiss  # noqa: F401
         k = min(top_k, len(self.chunks))
         scores, indices = self._index.search(query, k)
 
-        results = []
+        results: list[RetrievedChunk] = []
         for score, idx in zip(scores[0], indices[0]):
             if idx >= 0:  # FAISS retorna -1 para slots inválidos
                 results.append(RetrievedChunk(
-                    chunk=self.chunks[idx],
+                    chunk=self.chunks[int(idx)],
                     score=float(score),
                 ))
         return results
 
     def _search_numpy(self, query: np.ndarray, top_k: int) -> list[RetrievedChunk]:
         """Busca por produto interno (= cosine com vetores L2-normalizados)."""
-        matrix = np.vstack([c.embedding for c in self.chunks]).astype(np.float32)
+        # Todo chunk guardado no modo NumPy recebe embedding ao ser adicionado.
+        matrix = np.vstack(cast(list[np.ndarray], [c.embedding for c in self.chunks])).astype(np.float32)
         scores = (matrix @ query.T).flatten()
 
         top_indices = np.argsort(scores)[::-1][:top_k]
 
         return [
-            RetrievedChunk(chunk=self.chunks[i], score=float(scores[i]))
+            RetrievedChunk(chunk=self.chunks[int(i)], score=float(scores[i]))
             for i in top_indices
         ]
 
@@ -777,7 +787,7 @@ class LLMGenerator:
         """
         self.backend = backend
         self.temperature = temperature
-        self._client = None
+        self._client: Any = None
 
         if backend == "openai":
             self.model_name = model_name or "gpt-4o-mini"
@@ -864,7 +874,7 @@ class LLMGenerator:
                 )
                 time.sleep(espera)
 
-        raise ultimo_erro
+        raise ValueError(f"Backend de LLM desconhecido: {self.backend}") from ultimo_erro
 
     @staticmethod
     def _erro_e_cota_esgotada(erro: Exception) -> bool:
@@ -914,7 +924,7 @@ class LLMGenerator:
                 # sem essa folga (ou com thinking_budget=0, rejeitado por
                 # este modelo) a resposta saía cortada no meio.
                 max_output_tokens=2048,
-                thinking_config=types.ThinkingConfig(thinking_level="low"),
+                thinking_config=types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW),
             ),
         )
         return response.text.strip()
@@ -956,7 +966,7 @@ class GenomicRAGPipeline:
         self._indexed = False
 
     @classmethod
-    def from_config(cls, config: dict) -> "GenomicRAGPipeline":
+    def from_config(cls, config: dict[str, Any]) -> "GenomicRAGPipeline":
         """
         Factory method para instanciar o pipeline a partir de um dicionário
         de configuração. Simplifica setup em diferentes ambientes.
@@ -998,7 +1008,7 @@ class GenomicRAGPipeline:
 
         return cls(cleaner, chunker, embedding_engine, vector_store, retriever, generator)
 
-    def index_patient(self, genomic_json: dict | str) -> int:
+    def index_patient(self, genomic_json: dict[str, Any] | str) -> int:
         """
         Processa e indexa o perfil genômico de um paciente.
 
@@ -1008,8 +1018,7 @@ class GenomicRAGPipeline:
         Returns:
             Número de chunks indexados.
         """
-        if isinstance(genomic_json, str):
-            genomic_json = json.loads(genomic_json)
+        dados: dict[str, Any] = json.loads(genomic_json) if isinstance(genomic_json, str) else genomic_json
 
         # Cada indexação substitui o perfil anterior: sem isso, os chunks de
         # relatórios antigos continuariam no índice e poderiam ser recuperados
@@ -1018,7 +1027,7 @@ class GenomicRAGPipeline:
 
         # 1. Chunking
         logger.info("Iniciando chunking do perfil genômico...")
-        chunks = self.chunker.chunk_json(genomic_json)
+        chunks = self.chunker.chunk_json(dados)
 
         # 2. Geração de embeddings
         logger.info(f"Gerando embeddings para {len(chunks)} chunks...")
@@ -1034,6 +1043,11 @@ class GenomicRAGPipeline:
 
         logger.info(f"Indexação concluída: {len(chunks)} chunks prontos para busca.")
         return len(chunks)
+
+    def limpar_indice(self) -> None:
+        """Apaga o índice do paciente (usado pelo endpoint /api/reset)."""
+        self.vector_store.reset()
+        self._indexed = False
 
     def answer(self, question: str) -> RAGResponse:
         """
